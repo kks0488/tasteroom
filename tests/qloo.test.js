@@ -6,6 +6,26 @@ import { DEMO_TASTES } from "../server/fixtures.js";
 const first = DEMO_TASTES[0].entity_id;
 const second = DEMO_TASTES[4].entity_id;
 
+test("real search envelope without a success flag is accepted; explicit failure is rejected", async () => {
+  const raw = { results: [{ entity_id: first, name: "Resolved cultural taste" }] };
+  const client = new QlooClient({ apiKey: "test-value", fetchImpl: async () => Response.json(raw) });
+  assert.deepEqual(await client.search("Resolved cultural taste"), raw);
+  const failed = new QlooClient({ apiKey: "test-value", fetchImpl: async () => Response.json({ success: false, results: [] }) });
+  await assert.rejects(failed.search("failure"), /incomplete response/);
+});
+
+test("temporary live rate limits retry the actual request without fixture fallback", async () => {
+  let count = 0;
+  const raw = { results: [{ entity_id: first, name: "Actual response" }] };
+  const client = new QlooClient({ apiKey: "test-value", fetchImpl: async () => {
+    count++;
+    return count === 1 ? new Response("{}", { status: 429, headers: { "retry-after": "0.001" } }) : Response.json(raw);
+  } });
+  assert.deepEqual(await client.search("actual"), raw);
+  assert.equal(count, 2);
+  assert.equal(client.mode, "live");
+});
+
 test("live client sends documented GET paths, exact query names and server-side header", async () => {
   const calls = [];
   const client = new QlooClient({

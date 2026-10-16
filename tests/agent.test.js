@@ -22,6 +22,34 @@ const input = (people = [a], room = "Living room") => ({
   people,
 });
 const demo = { env: { QLOO_API_KEY: "" } };
+const llmEnv = {
+  QLOO_API_KEY: "",
+  LLM_API_KEY: "test-only",
+  LLM_MODEL: "test-model",
+};
+const requiredReasons = ["palette", "material0", "material1", "material2", "furniture", "lighting"];
+const completeReasons = (id = "E1") => Object.fromEntries(
+  requiredReasons.map((key) => [key, {
+    text: `The returned cultural signal is a creative starting point for this ${key} choice.`,
+    evidence: [id],
+  }]),
+);
+const finishResponse = (args = {}) => Response.json({
+  choices: [{ message: { role: "assistant", content: null, tool_calls: [{
+    id: "finish-test", type: "function", function: {
+      name: "finish_brief",
+      arguments: JSON.stringify({
+        direction: "calm", title: "A cited room", story: "A creative interpretation of the supplied cultural evidence.",
+        reasons: completeReasons(), ...args,
+      }),
+    },
+  }] } }],
+});
+const assertLlmFallback = (result) => {
+  assert.equal(result.reasoning, "Deterministic planner");
+  assert.ok(result.warnings.some((w) => w.includes("LLM reasoning was unavailable")));
+  assert.ok(!result.steps.some((s) => s.tool === "finish_brief"));
+};
 test("planner translates contrasting cultural profiles into different rooms", async () => {
   const quiet = await designRoom(input(), demo),
     vibrant = await designRoom(input([b]), demo);
@@ -154,7 +182,7 @@ test("Qloo live errors never downgrade silently to synthetic data", async () => 
     /rate limited/,
   );
 });
-test("LLM runs tool-calling loop, rejects invented evidence, preserves deterministic fallback", async () => {
+test("LLM runs tool-calling loop with complete cited reasons and preserves provider-error fallback", async () => {
   let turn = 0;
   const fetchImpl = async (url, opts) => {
     assert.match(
@@ -191,10 +219,7 @@ test("LLM runs tool-calling loop, rejects invented evidence, preserves determini
                           title: "Custom cultural room",
                           story: "A room composed through tools.",
                           reasons: {
-                            palette: {
-                              text: "Fabricated rationale",
-                              evidence: ["E999"],
-                            },
+                            ...completeReasons(),
                             furniture: {
                               text: "A tactile interpretation of the returned cultural signal.",
                               evidence: ["E1"],
@@ -220,7 +245,13 @@ test("LLM runs tool-calling loop, rejects invented evidence, preserves determini
   assert.equal(turn, 2);
   assert.equal(result.reasoning, "LLM tool-calling agent");
   assert.equal(result.brief.title, "Custom cultural room");
-  assert.notEqual(result.brief.paletteReason.text, "Fabricated rationale");
+  assert.equal(result.warnings.length, 0);
+  const paletteSignal = result.evidence.find((e) => e.id === result.brief.paletteReason.evidence[0]);
+  assert.ok(result.brief.paletteReason.text.includes(paletteSignal.name));
+  for (const color of result.brief.palette) {
+    assert.ok(result.brief.paletteReason.text.includes(color.name));
+    assert.ok(result.brief.paletteReason.text.includes(color.hex));
+  }
   assert.deepEqual(result.brief.furniture.reason.evidence, ["E1"]);
   const fallback = await designRoom(input(), {
     env: {
@@ -232,6 +263,117 @@ test("LLM runs tool-calling loop, rejects invented evidence, preserves determini
   });
   assert.equal(fallback.reasoning, "Deterministic planner");
   assert.match(fallback.warnings[0], /LLM reasoning was unavailable/);
+});
+test("valid LLM choices cannot insert invented Qloo guarantees, venue ambience or personal preferences", async () => {
+  const invented = "Qloo guarantees Alex always prefers brass interiors. Velvet Observatory has a cedar-scented lounge and a coral velvet ceiling.";
+  const reasons = Object.fromEntries(requiredReasons.map((key) => [key, { text: invented, evidence: ["E1"] }]));
+  const result = await designRoom(input(), {
+    env: llmEnv,
+    fetchImpl: async () => finishResponse({ direction: "warm", title: "A warm interpretation", story: invented, reasons }),
+  });
+  assert.equal(result.reasoning, "LLM tool-calling agent");
+  assert.equal(result.warnings.length, 0);
+  assert.equal(result.brief.direction, "warm");
+  const rendered = JSON.stringify(result.brief);
+  assert.doesNotMatch(rendered, /Qloo guarantees|Alex always prefers|Velvet Observatory|cedar-scented|coral velvet ceiling/);
+  for (const taste of a.tastes) assert.ok(result.brief.story.includes(taste));
+  assert.match(result.brief.story, /living room/);
+  const signal = result.evidence.find((e) => e.id === "E1");
+  for (const reason of [result.brief.paletteReason, ...result.brief.materials.map((m) => m.reason), result.brief.furniture.reason, result.brief.lightingReason]) {
+    assert.deepEqual(reason.evidence, ["E1"]);
+    assert.ok(reason.text.includes(signal.name));
+  }
+  for (const color of result.brief.palette) {
+    assert.ok(result.brief.paletteReason.text.includes(color.name));
+    assert.ok(result.brief.paletteReason.text.includes(color.hex));
+  }
+  for (const pick of result.brief.shopping) {
+    assert.deepEqual(pick.reason.evidence, ["E1"]);
+    assert.ok(pick.reason.text.includes(signal.name));
+  }
+});
+test("an invented citation rejects the whole LLM decision instead of mixing it with fallback reasons", async () => {
+  const reasons = completeReasons();
+  reasons.palette = { text: "Fabricated rationale with an invented reference.", evidence: ["E999"] };
+  const result = await designRoom(input(), {
+    env: llmEnv,
+    fetchImpl: async () => finishResponse({ title: "Rejected invented room", reasons }),
+  });
+  assertLlmFallback(result);
+  assert.notEqual(result.brief.title, "Rejected invented room");
+  assert.notEqual(result.brief.paletteReason.text, reasons.palette.text);
+  assert.ok(result.brief.paletteReason.evidence.every((id) => result.evidence.some((e) => e.id === id)));
+});
+test("missing LLM reasons cannot be presented as successful LLM reasoning", async () => {
+  const result = await designRoom(input(), {
+    env: llmEnv,
+    fetchImpl: async () => finishResponse({ title: "Rejected empty room", reasons: {} }),
+  });
+  assertLlmFallback(result);
+  assert.notEqual(result.brief.title, "Rejected empty room");
+});
+test("blank rationales and uncited material choices reject the whole LLM decision", async () => {
+  for (const invalid of [
+    { text: "   \n ", evidence: ["E1"] },
+    { text: "A creative material interpretation without any supporting reference.", evidence: [] },
+  ]) {
+    const reasons = { ...completeReasons(), material1: invalid };
+    const result = await designRoom(input(), {
+      env: llmEnv, fetchImpl: async () => finishResponse({ reasons }),
+    });
+    assertLlmFallback(result);
+  }
+});
+test("shared mode rejects a different model direction instead of retaining mismatched prose", async () => {
+  const result = await designRoom(input([a, b]), {
+    env: llmEnv,
+    fetchImpl: async () => finishResponse({ direction: "warm", title: "Rejected all-warm room", story: "An entirely warm palette of marigold and plum." }),
+  });
+  assertLlmFallback(result);
+  assert.equal(result.brief.direction, "balanced");
+  assert.notEqual(result.brief.title, "Rejected all-warm room");
+  assert.doesNotMatch(result.brief.story, /marigold and plum/);
+});
+test("LLM sees the actual bedroom and office furniture and lighting before composing reasons", async () => {
+  for (const [room, anchor, lightingUse] of [["Bedroom", /bed/i, /bedside/i], ["Home office", /desk/i, /desk/i]]) {
+    let context;
+    const result = await designRoom(input([a], room), {
+      env: llmEnv,
+      fetchImpl: async (url, options) => {
+        context = JSON.parse(JSON.parse(options.body).messages[1].content);
+        return finishResponse({ direction: "warm" });
+      },
+    });
+    assert.equal(result.reasoning, "LLM tool-calling agent");
+    assert.ok(context?.availableDesigns);
+    const designs = Object.values(context.availableDesigns);
+    assert.ok(designs.length);
+    for (const design of designs) {
+      const furniture = typeof design.furniture === "string" ? design.furniture : design.furniture.text;
+      assert.match(furniture, anchor);
+      assert.doesNotMatch(furniture, /sofa/i);
+      assert.ok(Array.isArray(design.lighting));
+      assert.match(JSON.stringify(design.lighting), lightingUse);
+    }
+    const chosen = context.availableDesigns[result.brief.direction];
+    assert.ok(chosen);
+    assert.equal(typeof chosen.furniture === "string" ? chosen.furniture : chosen.furniture.text, result.brief.furniture.text);
+    assert.deepEqual(chosen.lighting, result.brief.lighting);
+  }
+});
+test("every furniture and decor shopping pick has its own valid evidence-linked explanation", async () => {
+  for (const room of ["Living room", "Bedroom", "Home office"]) {
+    for (const people of [[a], [a, b]]) {
+      const result = await designRoom(input(people, room), demo);
+      const ids = new Set(result.evidence.map((e) => e.id));
+      assert.equal(result.brief.shopping.length, 5);
+      for (const pick of result.brief.shopping) {
+        assert.ok(pick.reason?.text.trim().length > 25, `${room}: ${pick.category} needs an explanation`);
+        assert.ok(pick.reason.evidence.length, `${room}: ${pick.category} needs evidence`);
+        assert.ok(pick.reason.evidence.every((id) => ids.has(id)), `${room}: ${pick.category} cites unknown evidence`);
+      }
+    }
+  }
 });
 test("new LLM tool discoveries receive reusable final evidence IDs without duplicates", async () => {
   const discoveredId = "00000000-0000-4000-8000-000000009999";
@@ -285,6 +427,7 @@ test("new LLM tool discoveries receive reusable final evidence IDs without dupli
               title: "A discovered room",
               story: "An interpretation of new cultural evidence.",
               reasons: {
+                ...completeReasons(discoveredEvidence),
                 palette: {
                   text: "The discovered cultural anchor suggests a warmer palette.",
                   evidence: [discoveredEvidence],

@@ -93,6 +93,7 @@ export class QlooClient {
     apiKey = process.env.QLOO_API_KEY,
     fetchImpl = fetch,
     onStep = () => {},
+    deadlineAt = Date.now() + 50000,
   } = {}) {
     this.apiKey = typeof apiKey === "string" ? apiKey.trim() : "";
     this.mode = this.apiKey ? "live" : "demo";
@@ -100,6 +101,35 @@ export class QlooClient {
     this.onStep = onStep;
     this.cache = new Map();
     this.requestCount = 0;
+    this.queue = Promise.resolve();
+    this.lastRequestAt = 0;
+    this.deadlineAt = deadlineAt;
+  }
+
+  // Hackathon keys have a small burst allowance. Serialize this request's
+  // research and retry only explicit rate limits, never manufacture results.
+  async fetchLive(url) {
+    const pending = this.queue.then(async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const delay = 300 - (Date.now() - this.lastRequestAt);
+        if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+        const remaining = this.deadlineAt - Date.now();
+        if (remaining <= 0) throw new QlooError("Qloo research reached its time limit. Please try again.", 503);
+        this.lastRequestAt = Date.now();
+        const response = await this.fetchImpl(url, {
+          method: "GET",
+          headers: { "X-Api-Key": this.apiKey, Accept: "application/json" },
+          signal: AbortSignal.timeout(Math.min(8000, remaining)),
+        });
+        if (response.status !== 429 || attempt === 2) return response;
+        const seconds = Number(response.headers?.get("retry-after"));
+        const retryDelay = Number.isFinite(seconds) && seconds > 0
+          ? Math.min(seconds * 1000, 3000) : 1000 * (attempt + 1);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      }
+    });
+    this.queue = pending.catch(() => {});
+    return pending;
   }
 
   async request(path, params, tool, detail, fixture) {
@@ -120,11 +150,7 @@ export class QlooClient {
     const pending = (async () => {
       if (this.mode === "demo") return fixture();
       try {
-        const response = await this.fetchImpl(url, {
-          method: "GET",
-          headers: { "X-Api-Key": this.apiKey, Accept: "application/json" },
-          signal: AbortSignal.timeout(8000),
-        });
+        const response = await this.fetchLive(url);
         if (!response.ok) {
           if (response.status === 429)
             throw new QlooError(
@@ -144,7 +170,8 @@ export class QlooClient {
         const data = await response.json();
         if (
           !data ||
-          data.success !== true ||
+          data.success === false ||
+          (path !== "/search" && data.success !== true) ||
           !data.results ||
           typeof data.results !== "object"
         )

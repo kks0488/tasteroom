@@ -4,6 +4,8 @@ import RoomArt from "./RoomArt.jsx";
 import StoreArt from "./StoreArt.jsx";
 import { DEMO_TASTES } from "../server/fixtures.js";
 import "./style.css";
+const liveSampleA = ["Amélie", "Radiohead", "MUJI"];
+const liveSampleB = ["Spirited Away", "Björk", "IKEA"];
 const sampleA = ["The Quiet Atlas", "Low Tide Radio", "North Window House"];
 const sampleB = [
   "Paper Sun Parade",
@@ -12,11 +14,11 @@ const sampleB = [
 ];
 const Arrow = () => <span aria-hidden="true">↗</span>;
 function App() {
-  const [mode, setMode] = useState("storefront"),
+  const [mode, setMode] = useState("solo"),
     [room, setRoom] = useState("Living room"),
     [people, setPeople] = useState([
-      { name: "Alex", tastes: sampleA },
-      { name: "Sam", tastes: sampleB },
+      { name: "Alex", tastes: ["", "", ""] },
+      { name: "Sam", tastes: ["", "", ""] },
     ]),
     [result, setResult] = useState(null),
     [busy, setBusy] = useState(false),
@@ -24,7 +26,8 @@ function App() {
     [selected, setSelected] = useState(null),
     [copied, setCopied] = useState(false),
     [progress, setProgress] = useState(0);
-  const [dataMode, setDataMode] = useState("demo");
+  const [dataMode, setDataMode] = useState("loading");
+  const modeReady = dataMode === "live" || dataMode === "demo";
   const [store, setStore] = useState({ neighborhood: "Seongsu-dong, Seoul", business: "Cafe", area: 50, references: "" });
   const [photo, setPhoto] = useState(null);
   useEffect(() => () => { if (photo?.url) URL.revokeObjectURL(photo.url); }, [photo]);
@@ -43,14 +46,25 @@ function App() {
   }
   useEffect(() => {
     fetch("/api/config")
-      .then((r) => r.json())
-      .then((config) => {
-        if (config.dataMode === "live") {
-          setDataMode("live");
-          setPeople((ps) => ps.map((p) => ({ ...p, tastes: ["", "", ""] })));
-        }
+      .then((r) => {
+        if (!r.ok) throw new Error("Server configuration unavailable.");
+        return r.json();
       })
-      .catch(() => {});
+      .then((config) => {
+        if (!["live", "demo"].includes(config.dataMode))
+          throw new Error("Server configuration unavailable.");
+        setDataMode(config.dataMode);
+        setPeople((ps) => ps.map((p, i) => ({
+          ...p,
+          tastes: config.dataMode === "live"
+            ? (i === 0 ? liveSampleA : liveSampleB)
+            : (i === 0 ? sampleA : sampleB),
+        })));
+      })
+      .catch(() => {
+        setDataMode("unavailable");
+        setError("Could not load the server mode. Reload to try again.");
+      });
   }, []);
   useEffect(() => {
     if (selected) {
@@ -78,6 +92,7 @@ function App() {
     });
   async function submit(e) {
     e.preventDefault();
+    if (!modeReady) return;
     setError("");
     setBusy(true);
     setResult(null);
@@ -175,7 +190,7 @@ function App() {
       ...b.lighting.map((l) => `${l.time} · ${l.kelvin} · ${l.description}`),
       b.lightingReason.text,
       "\nCHECKLIST",
-      ...b.shopping.map((s) => `☐ ${s.category}: ${s.item}`),
+      ...b.shopping.map((s) => `☐ ${s.category}: ${s.item}. Why: ${s.reason.text} [${s.reason.evidence.join(", ")}]`),
       "\nEVIDENCE",
       ...result.evidence.map(
         (e) => `${e.id}: ${e.name} ← ${e.entity} (${e.owner})`,
@@ -213,46 +228,42 @@ function App() {
               <span className="dot" /> TasteRoom — the Taste-to-Space agent
             </div>
             <h1>
-              Empty space.
+              Your taste.
               <br />
-              Local <em>character.</em>
+              Your <em>space.</em>
             </h1>
             <p className="hero-description">
-              From the culture you love to the spaces you make.
-              Turn a vacant shop into a concept that connects with its neighborhood.
+              Favorite movies, music, brands and places become an interior
+              style brief, a color and material palette, and furniture and decor ideas.
               <br />
-              <strong>Your taste. Your community. Your space.</strong>
+              <strong>Qloo finds cultural connections. See why each idea fits.</strong>
             </p>
-            <button className="primary" disabled={busy} onClick={() => { changeMode("storefront"); scrollToForm(); }}>
-              Explore Storefront <Arrow />
+            <button className="primary" disabled={busy} onClick={() => { changeMode("solo"); scrollToForm(); }}>
+              Create my room brief <Arrow />
             </button>
             <div className="hero-foot">
               <span className="little-mark">✳</span>
               <span>
-                For founders, vacant-space owners and designers.
+                Start with the culture you love.
                 <br />
-                Three ways from taste to space.
+                Explore a personal room, a shared home or a storefront.
               </span>
             </div>
           </div>
           <div className="hero-visual">
-            <div className="hero-transform">
-              <StoreArt />
-              <span className="transform-arrow" aria-hidden="true">↘</span>
-              <StoreArt after business="Cafe" />
-            </div>
+            <RoomArt direction="calm" room="Living room" />
             <div className="room-label">
               <span>
-                <span className="dot" /> STOREFRONT / FROM EMPTY TO POSSIBILITY
+                <span className="dot" /> MY ROOM / CONCEPTUAL ILLUSTRATION
               </span>
               <span>STUDY Nº 001</span>
             </div>
             <div className="floating-note">
               <span>THE STARTING POINT</span>
               <p>
-                A vacant unit.
+                Movies. Music. Places.
                 <br />
-                A neighborhood story.
+                A room with your story.
               </p>
               <span className="note-line" />
             </div>
@@ -291,18 +302,22 @@ function App() {
               <strong>
                 {dataMode === "live"
                   ? "Live cultural discovery is configured."
-                  : "Try the studio. No key needed."}
+                  : dataMode === "demo"
+                    ? "Offline demo · fictional tastes and synthetic evidence."
+                    : dataMode === "loading" ? "Checking the server mode…" : "Server mode unavailable."}
               </strong>
               <span>
                 {dataMode === "live"
                   ? "Enter real films, artists, restaurants, places, books or brands. Your tastes are resolved and researched through Qloo."
-                  : "Without a Qloo key, the agent uses fictional sample tastes and synthetic responses. Add a server key for real cultural names."}
+                  : dataMode === "demo"
+                    ? "No Qloo key is configured. These fixtures demonstrate the flow; they are not real Qloo discoveries."
+                    : "The studio waits for its server configuration before sending your tastes."}
               </span>
             </div>
             <span className="demo-pill">
               {dataMode === "live"
                 ? "SERVER KEY CONFIGURED"
-                : "KEYLESS DEMO AVAILABLE"}
+                : dataMode === "demo" ? "SYNTHETIC OFFLINE DEMO" : "WAITING FOR SERVER"}
             </span>
           </div>
           <form onSubmit={submit}>
@@ -316,7 +331,7 @@ function App() {
                   className={mode === value ? "active" : ""} aria-pressed={mode === value}
                   disabled={busy} onClick={() => changeMode(value)}>
                   <strong>{title} <span aria-hidden="true">↗</span></strong><span>{description}</span>
-                  {value === "storefront" && <small>FEATURED DEMO</small>}
+                  {value === "solo" && <small>TASTE-TO-SPACE</small>}
                 </button>)}
               </div>
               {mode !== "storefront" && <label className="room-select">
@@ -366,15 +381,17 @@ function App() {
                         onChange={(e) => edit(i, "name", e.target.value)}
                       />
                     </label>
-                    {dataMode === "demo" && (
+                    {modeReady && (
                       <button
                         type="button"
                         className="text-button"
                         onClick={() =>
-                          edit(i, "tastes", i === 0 ? sampleA : sampleB)
+                          edit(i, "tastes", dataMode === "live"
+                            ? (i === 0 ? liveSampleA : liveSampleB)
+                            : (i === 0 ? sampleA : sampleB))
                         }
                       >
-                        Use sample ↗
+                        {dataMode === "live" ? "Use real sample ↗" : "Use fictional sample ↗"}
                       </button>
                     )}
                   </div>
@@ -434,13 +451,13 @@ function App() {
                 </div>
               ))}
             </div>}
-            <datalist id="demo-tastes">
+            {dataMode === "demo" && <datalist id="demo-tastes">
               {DEMO_TASTES.map((t) => (
                 <option key={t.id} value={t.name}>
                   {t.types[0].replace("urn:entity:", "")} · fictional demo taste
                 </option>
               ))}
-            </datalist>
+            </datalist>}
             {mode === "shared" && (
               <div className="shared-hint">
                 <span>↔</span>
@@ -461,7 +478,7 @@ function App() {
                 Live mode sends tastes to Qloo and, if enabled, your LLM
                 provider.
               </span>
-              <button className="primary" type="submit" disabled={busy}>
+              <button className="primary" type="submit" disabled={busy || !modeReady}>
                 {busy
                   ? "Connecting your taste…"
                   : mode === "storefront"
@@ -675,6 +692,9 @@ function App() {
                         <span>
                           <small>{s.category}</small>
                           {s.item}
+                          <small style={{ textTransform: "none", letterSpacing: 0, lineHeight: 1.5, marginTop: 8 }}>
+                            {s.reason.text} · {s.reason.evidence.join(", ")}
+                          </small>
                         </span>
                       </label>
                     ))}
