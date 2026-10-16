@@ -2,7 +2,7 @@
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, rename } from "node:fs/promises";
 const base = process.env.CAPTURE_URL || "http://127.0.0.1:4173";
 const out = process.env.CAPTURE_DIR || "media";
 await mkdir(out, { recursive: true });
@@ -17,14 +17,54 @@ const issues = [],
   checks = [],
   consoleErrors = [];
 try {
+  const storefront = await browser.newContext({
+    viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, reducedMotion: "reduce",
+    ...(process.env.RECORD_VIDEO === "1" ? {recordVideo:{dir:out,size:{width:1920,height:1080}}} : {}),
+  });
+  const sp = await storefront.newPage();
+  sp.on("pageerror",e=>consoleErrors.push(e.message));
+  await sp.goto(base,{waitUntil:"networkidle"});
+  const shot = async name => {
+    await sp.waitForTimeout(700);
+    await sp.screenshot({path:`${out}/${name}.png`});
+  };
+  await shot("09-storefront-hero");
+  await sp.getByRole("button",{name:"Explore Storefront"}).click();
+  await sp.locator("#studio").evaluate(el=>el.scrollIntoView({block:"start",behavior:"instant"}));
+  await shot("10-storefront-before");
+  const reference = await sp.locator(".space-reference .store-art").screenshot({type:"png"});
+  await sp.getByLabel("Photo of your empty space").setInputFiles({name:"our-empty-shop.png",mimeType:"image/png",buffer:reference});
+  await sp.getByText(/px · preview only/).waitFor();
+  let submitted;
+  sp.on("request",r=>{if(r.url().endsWith("/api/design") && r.method()==="POST") submitted=r.postDataJSON();});
+  await sp.getByRole("button",{name:"Create store concept"}).click();
+  await sp.locator(".budget-card").waitFor();
+  assert.equal(submitted.mode,"storefront");
+  assert.equal(submitted.photo,undefined);
+  await sp.locator(".results").evaluate(el=>el.scrollIntoView({block:"start",behavior:"instant"}));
+  await shot("11-storefront-after");
+  await sp.locator(".material-grid").scrollIntoViewIfNeeded();
+  await shot("12-storefront-materials");
+  await sp.getByRole("button",{name:/Inspect signal/}).first().click();
+  await sp.getByRole("dialog").waitFor();
+  assert.match(await sp.getByRole("dialog").innerText(),/signal.location.query/);
+  await shot("13-storefront-trace");
+  await sp.keyboard.press("Escape");
+  await sp.locator(".audience-card").scrollIntoViewIfNeeded();
+  await shot("14-storefront-audience");
+  await sp.locator(".budget-card").scrollIntoViewIfNeeded();
+  assert.match(await sp.locator(".budget-card").innerText(),/not a quote/);
+  await shot("15-storefront-budget");
+  const sa = await new AxeBuilder({page:sp}).withTags(["wcag2a","wcag2aa","wcag21aa"]).analyze();
+  for(const v of sa.violations) issues.push({label:"storefront",id:v.id,impact:v.impact,nodes:v.nodes.map(n=>n.target)});
+  checks.push("Storefront uploads a local-only image, researches location/audience, produces cited concept and rough USD budget");
+  const video = sp.video();
+  await storefront.close();
+  if(video) { const raw=await video.path(); await rename(raw,`${out}/storefront-flow.webm`); }
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: 1,
     reducedMotion: "reduce",
-    recordVideo:
-      process.env.RECORD_VIDEO === "1"
-        ? { dir: out, size: { width: 1920, height: 1080 } }
-        : undefined,
   });
   const page = await context.newPage();
   page.on("pageerror", (e) => consoleErrors.push(e.message));
@@ -35,7 +75,7 @@ try {
     quality: 86,
   });
   await page
-    .getByRole("button", { name: "Find your room", exact: false })
+    .getByRole("button", { name: "Explore Storefront", exact: false })
     .click();
   await page.screenshot({
     path: `${out}/02-taste-inputs.jpg`,
@@ -55,6 +95,7 @@ try {
       });
   };
   await audit("input");
+  await page.getByRole("button", {name:"My Room"}).click();
   await page.getByRole("button", { name: "Translate my taste" }).click();
   await page
     .getByRole("heading", { name: "A quieter kind of character." })
@@ -113,7 +154,7 @@ try {
     .first()
     .click();
   await page
-    .getByRole("button", { name: "A shared space", exact: false })
+    .getByRole("button", { name: "Shared Space", exact: false })
     .click();
   await page.getByRole("button", { name: "Find our common ground" }).click();
   await page
@@ -208,8 +249,14 @@ try {
     type: "jpeg",
     quality: 86,
   });
+  await mp.getByRole("button",{name:"Create store concept"}).click();
+  await mp.locator(".budget-card").waitFor();
+  assert.equal(await mp.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false);
+  await mp.locator(".results").evaluate(el=>el.scrollIntoView({block:"start",behavior:"instant"}));
+  await mp.screenshot({path:`${out}/16-mobile-storefront.png`});
+  checks.push("Storefront concept and budget fit a 390px mobile viewport");
   await mp
-    .getByRole("button", { name: "A shared space", exact: false })
+    .getByRole("button", { name: "Shared Space", exact: false })
     .click();
   await mp.getByRole("button", { name: "Find our common ground" }).click();
   await mp

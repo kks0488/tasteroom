@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" width="960" height="720" role="img" aria-label="Original illustration of an empty commercial unit">
+  <defs>
+    <linearGradient id="wall" x2="1" y2="1"><stop stop-color="#e8e3d6"/><stop offset="1" stop-color="#c8c2b3"/></linearGradient>
+    <linearGradient id="floor" x2="0" y2="1"><stop stop-color="#c6c0b2"/><stop offset="1" stop-color="#a59e8e"/></linearGradient>
+  </defs>
+  <path fill="url(#wall)" d="M0 0h960v490L0 550z"/>
+  <path fill="#d3ccbd" d="M0 0h200v520L0 550z"/>
+  <path fill="url(#floor)" d="m0 550 960-60v230H0z"/>
+  <path fill="#f0eadb" d="M235 90h280v380H235z"/>
+  <path fill="#c5d1c5" d="M249 104h252v352H249z"/>
+  <path fill="#aabaac" d="M250 340q100-100 250-30v145H250z"/>
+  <path d="M375 104v352m-126-176h252" stroke="#f0eadb" stroke-width="9"/>
+  <path fill="#fff3d5" opacity=".32" d="m249 460 252-5 275 212-518 30z"/>
+  <path d="m0 553 960-60M90 720l280-193m-40 193 220-204m53 204 135-216" stroke="#8e897d" opacity=".45" stroke-width="2"/>
+  <path fill="#bab3a5" d="M650 130h170v340H650z"/>
+  <path fill="#d7d0c1" d="M661 141h148v317H661z"/>
+  <path fill="#a59d8b" d="M791 290h5v32h-5z"/>
+  <path d="M0 50h960" stroke="#f5eee1" stroke-width="12"/>
+  <path fill="#a09887" d="M568 452h22v12h-22zM843 435h22v12h-22z"/>
+</svg>

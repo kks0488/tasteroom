@@ -2,6 +2,7 @@
   "base": "https://tasteroom-rho.vercel.app",
   "viewport": "1920x1080 and 390x844",
   "checks": [
+    "Storefront uploads a local-only image, researches location/audience, produces cited concept and rough USD budget",
     "Personal brief uses synthetic demo label and calm direction",
     "Taste trace modal opens, labels its source, closes with Escape",
     "Expressive cultural inputs materially change palette and room direction",
@@ -10,6 +11,7 @@
     "Invalid API requests return 400",
     "Unknown demo tastes return 422 instead of invented entities",
     "Home office choice updates furniture and lighting",
+    "Storefront concept and budget fit a 390px mobile viewport",
     "390px mobile input and shared brief render without horizontal overflow"
   ],
   "consoleErrors": [],

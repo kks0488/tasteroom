@@ -164,3 +164,55 @@ export function compareFixture(a, b) {
     .sort((x, y) => y.query.affinity - x.query.affinity);
   return { success: true, duration: 0, results };
 }
+
+// These are fictional affinities, not observations about a real neighborhood.
+// Response envelope and entity/query fields follow the documented Insights API.
+export function locationInsightsFixture(location, type, ids = []) {
+  const label = typeof location === "string"
+    ? location.trim().toLowerCase()
+    : location.query?.trim().toLowerCase() || `${location.longitude},${location.latitude}`;
+  const seed = [...label].reduce((sum, letter) => sum + letter.codePointAt(0), 0);
+  const neighborhoodGroup = seed % 2 === 0 ? "quiet" : "expressive";
+  const referenceWeights = scores(ids);
+  const entities = recommendations
+    .filter((entity) => entity.subtype === type)
+    .map((entity) => {
+      const locationWeight = entity.group === neighborhoodGroup ? 0.94
+        : entity.group === "shared" ? 0.78 : 0.55;
+      const affinity = ids.length
+        ? locationWeight * 0.7 + (0.35 + referenceWeights[entity.group] * 0.6) * 0.3
+        : locationWeight;
+      return responseEntity(entity, Number(affinity.toFixed(3)));
+    })
+    .sort((a, b) => b.query.affinity - a.query.affinity);
+  return { success: true, results: { entities }, duration: 0 };
+}
+
+// Qloo's demographic values are signed affinity scores, not population shares.
+// The demographic cohort belongs to each selected taste entity, not the city.
+export function demographicsFixture(ids) {
+  return {
+    success: true,
+    results: {
+      demographics: [...new Set(ids)].map((entity_id) => {
+        const entity = [...inputs, ...recommendations].find((item) => item.entity_id === entity_id);
+        const expressive = entity?.group === "expressive";
+        return {
+          entity_id,
+          query: {
+            age: {
+              "24_and_younger": expressive ? 0.22 : -0.08,
+              "25_to_29": expressive ? 0.43 : 0.18,
+              "30_to_34": expressive ? 0.28 : 0.39,
+              "35_to_44": expressive ? 0.06 : 0.27,
+              "45_to_54": expressive ? -0.31 : -0.09,
+              "55_and_older": expressive ? -0.24 : -0.28,
+            },
+            gender: { male: 0.04, female: -0.04 },
+          },
+        };
+      }),
+    },
+    duration: 0,
+  };
+}

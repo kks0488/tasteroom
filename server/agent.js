@@ -1,6 +1,8 @@
 import { QlooClient } from "./qloo.js";
+import { validateStorefront, designStorefront } from "./storefront.js";
 
 export function validateInput(input) {
+  if (input?.mode === "storefront") return validateStorefront(input);
   if (!input || !["solo", "shared"].includes(input.mode))
     throw new Error("Choose a personal or shared room.");
   if (!["Living room", "Bedroom", "Home office"].includes(input.room))
@@ -585,6 +587,7 @@ export async function designRoom(
   { client, env = process.env, fetchImpl = fetch } = {},
 ) {
   const input = validateInput(raw);
+  if (input.mode === "storefront") return designStorefront(input, { client, env, fetchImpl });
   const steps = [];
   const warnings = [];
   const onStep = (step) => steps.push({ ...step, index: steps.length + 1 });

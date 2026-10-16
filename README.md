@@ -1,126 +1,133 @@
-# TasteRoom
+# TasteRoom — the Taste-to-Space agent
 
-**Turn the culture you love into a room that feels like you.**
+**Turn cultural taste into personal interiors, shared spaces and neighborhood storefront concepts.**
 
-TasteRoom is an agentic interior design studio grounded in cross-domain cultural taste. It turns 3–5 favorite films, artists, places, books or brands into an actionable room brief, with an evidence trail from every color, material and furniture choice back to the taste signals behind it.
+[Live demo](https://tasteroom-rho.vercel.app) · [GitHub](https://github.com/kks0488/tasteroom)
 
-**Live demo:** [tasteroom-rho.vercel.app](https://tasteroom-rho.vercel.app). No login required. The initial deployment uses explicitly labeled synthetic demo data until the owner supplies a Qloo key.
-
-![TasteRoom studio](media/01-studio.jpg)
+![Storefront: empty unit to neighborhood concept](media/09-storefront-hero.png)
 
 ## Problem
 
-People know which music, films and places move them, but often cannot translate those preferences into an interior design vocabulary. Generic prompts such as “modern and cozy” flatten individual tastes. A shared home adds another problem: two people need a room that respects both of them.
+People can name the films, music, brands and places they love but struggle to translate that taste into a space. Two people need common ground for a shared home. Founders and owners of vacant commercial units need a concept that connects with the surrounding community, beyond a generic style prompt.
 
 ## Solution
 
-- A personal or shared-space studio, with living room, bedroom and home office briefs.
-- An editorial moodboard with hex palettes, material textures, furniture direction and a three-scene lighting timeline.
-- Clickable taste traces, resolved entities and an agent tool log.
-- Shared Space compares two cultural profiles, shows overlapping and distinct signals, and preserves a personal corner for each person.
-- A generic shopping checklist, copyable brief and print layout. No scraped products, affiliate links or outside imagery.
-- A complete keyless demo with original fictional tastes. Unknown demo names are rejected rather than fabricated.
+TasteRoom offers three modes, with a visible taste trace behind its creative choices:
+
+- **My Room:** 3–5 cultural favorites become an interior style brief, color and finish palette, furniture/decor directions, lighting scenes, a moodboard and a shopping checklist.
+- **Shared Space:** compare two taste profiles, find shared cultural anchors and preserve individual corners.
+- **Storefront:** bring an empty-space photo, neighborhood/city, business type and optional brand references. Get three name ideas, an interior concept, palette, materials, day/night lighting, signature zone, music direction, menu/product direction, an opening event and a rough fit-out budget by category.
+
+Storefront is the featured demo. Try **Seongsu-dong, Seoul → Cafe → Create store concept**. Upload a JPG, PNG or WebP under 8 MB, or use the supplied original neutral shop illustration. Photos stay in the browser: only the neighborhood, business type, assumed floor area and references reach the server. Dimensions displayed are image pixels, not room measurements. The after image is an original concept illustration, not a reconstruction of the uploaded photo.
+
+Homeowners, interior designers and furniture retailers can use the room modes. Landlords, brokers with vacant units, small founders and interior designers can use Storefront. Built by Kyoungsoo Kim, an architecture graduate holding the Korean national certificate **Industrial Engineer, Interior Architecture**.
 
 ## Why Qloo is essential
 
-Qloo supplies the cultural relationships that drive the design, rather than decorating an otherwise generic prompt. The agent resolves names, queries cross-domain brand/place/artist/book affinities and tag taste analysis, and compares two groups to discover shared cultural anchors. Changing the cultural input changes the selected design direction, palette, materials and personal accents. A missing or failed live Qloo response does **not** silently become a demo success.
+Qloo supplies cross-domain cultural relationships. Room modes resolve favorites and explore brand, place, artist, book and tag affinities. Shared Space uses Analysis Compare to find common anchors. Storefront uses location signals to discover area-affinity brands/artists and geographically filtered places, then requests demographic affinities for discovered brands. Ranked signals select the design direction; every creative section links back to returned evidence.
 
-The translation from cultural affinity into interiors is TasteRoom’s creative interpretation, not a claim that Qloo measures furniture or lighting preferences. With no LLM key, a bounded deterministic planner chooses from original design directions using the returned signals. With an LLM key and model, the agent uses an OpenAI-compatible tool-calling loop to explore Qloo and compose the direction and evidence-grounded explanations. Invalid evidence citations are discarded in favor of grounded planner explanations.
+The translation into interiors is TasteRoom's interpretation. Qloo does not measure furniture suitability, interior performance, construction cost or likely sales. Demographic scores are **signed affinities**, not percentages, population counts or a census of the neighborhood. They describe the audiences of discovered affinity entities and provide hypotheses to validate with local visitors. The concept welcomes all customers.
 
-### Verified Qloo contract
+### Documented API contract
 
-Requests use `GET https://hackathon.api.qloo.com` with a server-side `X-Api-Key` header:
+Server-side requests use `GET https://hackathon.api.qloo.com` with `X-Api-Key`:
 
-| Tool                  | Endpoint               | Parameters used                                                                                      |
-| --------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------- |
-| Resolve tastes        | `/search`              | `query`, `take`                                                                                      |
-| Cross-domain affinity | `/v2/insights`         | `filter.type`, `signal.interests.entities`, `take`                                                   |
-| Tag taste analysis    | `/v2/insights`         | `filter.type=urn:tag`, `signal.interests.entities`, `take`                                           |
-| Shared Space          | `/v2/analysis/compare` | `a.signal.interests.entities`, `b.signal.interests.entities`, `filter.type=urn:entity:brand`, `take` |
+| Purpose | Endpoint | Parameters |
+| --- | --- | --- |
+| Resolve tastes/references | `/search` | `query`, `take` |
+| Cross-domain room insights | `/v2/insights` | `filter.type`, `signal.interests.entities`, `take` |
+| Shared anchors | `/v2/analysis/compare` | `a.signal.interests.entities`, `b.signal.interests.entities`, `filter.type`, `take` |
+| Area brand/artist insights | `/v2/insights` | `filter.type`, `signal.location.query`, optional `signal.interests.entities`, `take` |
+| Local place insights | `/v2/insights` | `filter.type=urn:entity:place`, `signal.location.query`, `filter.location.query`, optional reference IDs, `take` |
+| Audience affinities | `/v2/insights` | `filter.type=urn:demographics`, `signal.interests.entities` from discovered brands |
 
-The official [Analysis Compare documentation](https://docs.qloo.com/reference/analysis-compare) specifies **`/v2/analysis/compare`**; this corrects the brief’s `/v2/insights/compare` spelling. No legacy recommendations endpoints are used. Insights entity results use `results.entities`, tag analysis uses `results.tags`, and search/compare use `results` arrays. Comparison anchor entities ground the shared brief’s explanations. The overlapping-signal lists are computed by matching identifiers from each group’s highest-ranked affinity results; they are not a Qloo compatibility percentage.
+The location builder also supports coordinate objects using WKT `POINT(longitude latitude)` via `signal.location` / `filter.location`, with optional radii in meters. The UI uses neighborhood/city text. Geographic filters apply only to place results here; location signals rank brand/artist affinities. Default radius is left to Qloo's density discovery.
 
-Official documentation was read with curl: [hackathon guide](https://docs.qloo.com/reference/qloo-llm-hackathon-developer-guide), [Insights deep dive](https://docs.qloo.com/reference/insights-api-deep-dive), [parameter reference](https://docs.qloo.com/reference/parameters), [entity type guide](https://docs.qloo.com/reference/available-parameters-by-entity-type), [search](https://docs.qloo.com/reference/get-search), [tag taste analysis](https://docs.qloo.com/reference/taste-analysis), and [compare](https://docs.qloo.com/reference/analysis-compare). Compare’s published item definition contains an unresolved external schema include, so live compare item compatibility still needs verification with a real key. The UI deliberately avoids unsupported percentages.
+Official documentation was read with **curl**: [location insights](https://docs.qloo.com/reference/insights-with-location-use-case), [demographic insights](https://docs.qloo.com/reference/demographics-use-case), [parameters](https://docs.qloo.com/reference/parameters), [search](https://docs.qloo.com/reference/get-search), [tag taste analysis](https://docs.qloo.com/reference/taste-analysis), [Analysis Compare](https://docs.qloo.com/reference/analysis-compare), and [hackathon guide](https://docs.qloo.com/reference/qloo-llm-hackathon-developer-guide). The brief's older `/reference/location-based-insights` URL currently returns 404; the canonical location guide above was used.
+
+Fixtures follow these documented collection shapes: search/compare `results[]`; Insights `results.entities[]` (including `entity_id`, `tags`, `query.affinity`); tag analysis `results.tags[]`; demographics `results.demographics[]` with `entity_id`, `query.age` and `query.gender`. Age keys are `24_and_younger`, `25_to_29`, `30_to_34`, `35_to_44`, `45_to_54`, `55_and_older`. Every demo name, ID and score is fictional. Location-dependent fixture ranking demonstrates the flow, not actual knowledge of a city. Unknown demo references are rejected.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    UI[React editorial studio] --> API[Vercel serverless POST /api/design]
-    API --> V[Validate inputs: 3 to 5 tastes per person]
-    V --> A[Bounded agent orchestrator]
-    A --> S[Qloo search: resolve entity IDs]
-    S --> I[Qloo Insights: brands, places, artists, books, tags]
-    I --> C[Shared mode: Qloo Analysis Compare]
-    C --> E[Evidence ledger and shared signals]
+    UI[React: My Room / Shared Space / Storefront] --> API[Vercel POST /api/design]
+    Photo[Local photo preview] --> UI
+    API --> V[Bounded input validation]
+    V --> R[Room: resolve cultural favorites]
+    R --> I[Cross-domain Qloo Insights]
+    I --> C[Optional Shared Space comparison]
+    V --> S[Storefront: location + reference signals]
+    S --> P[Area brands / local places / artists]
+    P --> D[Demographic affinities of discovered brands]
+    C --> E[Evidence ledger]
     I --> E
-    E --> P[Deterministic design planner]
-    E --> L[Optional LLM tool-calling loop]
-    L --> Q[Validated Qloo tools and finish_brief]
-    Q --> P
-    P --> B[Room brief with evidence citations]
+    P --> E
+    D --> E
+    E --> B[Deterministic planners + cited moodboard]
+    E --> L[Optional room LLM tool loop]
+    L --> B
     B --> UI
-    A -. no Qloo key .-> F[Original schema-shaped synthetic fixtures]
+    API -. no Qloo key .-> F[Original schema-shaped demo fixtures]
 ```
 
-The agent is a custom tool-using orchestrator; no agent framework is claimed. A client is created per design request, with in-flight deduplication, private request-scoped caching, a 32-call cap and 8-second Qloo timeouts. LLM reasoning is bounded to three rounds with 10-second provider timeouts. Keys stay on the server. Profiles and live Qloo responses are not persisted or checked into the repository.
+Each request owns a Qloo client with caching, in-flight deduplication, a 32-call limit and 8-second upstream timeouts. Room LLM reasoning is bounded to three rounds and 10-second provider timeouts. Storefront uses the deterministic planner with actual returned signals when live mode is enabled. The app does not persist profiles, photos or live Qloo responses. Source paths: `server/qloo.js`, `server/fixtures.js`, `server/agent.js`, `server/storefront.js`, `src/main.jsx`, `src/StoreArt.jsx`.
 
 ## Run and test
 
-Node.js 22.12 or newer is required. On a low-memory Mac, run installs, builds, servers and browsers on `pilot`.
+Requires Node 22.12+. On a low-memory Mac, run installs, builds, dev servers and Playwright on `pilot`.
 
 ```sh
 npm ci
 npm test
 npm run build
 npm run dev
+# http://127.0.0.1:4173
 ```
 
-Open `http://127.0.0.1:4173`. With no environment variables, the entire flow works using fictional samples. Choose **Just for me → Translate my taste**, inspect a taste trace, then choose **A shared space → Find our common ground**. Change the room type to see different anchor furniture and lighting scenes.
+The keyless app works immediately. Room sample A: The Quiet Atlas / Low Tide Radio / North Window House. Sample B: Paper Sun Parade / Sunday Brass Club / Clay Market Kitchen. Storefront's optional sample brand reference: Field Notes Press.
 
-Sample A: The Quiet Atlas / Low Tide Radio / North Window House. Sample B: Paper Sun Parade / Sunday Brass Club / Clay Market Kitchen. All names, IDs, tags and affinities in these fixtures are original synthetic examples; they are not a public dump of Qloo data.
+`npm test` covers existing room behavior, shared comparison, LLM citations/fallback, Qloo contracts, location parameters and Storefront validation, evidence, audience data, changed location/business, budget arithmetic and live failures. `.github/workflows/ci.yml` runs unit tests, the production build and a history secret scan.
 
-### Live configuration
+### Environment and live mode
 
-Use `.env.example` as the variable reference. Set variables in the server environment; the local server can load a local file with `node --env-file=.env server/dev.js`. Never prefix secrets with `VITE_`.
+Read `.env.example`; all secret values are empty. Set variables in the server environment. For local use: `node --env-file=.env server/dev.js`. Never use a `VITE_` prefix for secrets.
 
-| Variable       | Behavior                                                                                                  |
-| -------------- | --------------------------------------------------------------------------------------------------------- |
-| `QLOO_API_KEY` | Automatically enables real Qloo requests and real cultural input fields. Unset means synthetic demo data. |
-| `LLM_BASE_URL` | OpenAI-compatible base URL; default `https://api.tokenfactory.nebius.com/v1/`.                            |
-| `LLM_API_KEY`  | Enables LLM reasoning when a model is also set.                                                           |
-| `LLM_MODEL`    | Exact model ID available to the configured provider. No model availability is assumed.                    |
+| Variable | Behavior |
+| --- | --- |
+| `QLOO_API_KEY` | Automatically selects live Qloo calls. Unset selects clearly labeled synthetic demo fixtures. |
+| `LLM_BASE_URL` | OpenAI-compatible base URL; defaults to `https://api.tokenfactory.nebius.com/v1/`. |
+| `LLM_API_KEY` | Enables the optional room LLM loop when a model is also set. |
+| `LLM_MODEL` | Exact available provider model ID; no model availability is assumed. |
 
-The [official Nebius quickstart](https://docs.tokenfactory.nebius.com/quickstart) confirms that base URL and `/chat/completions`. Another OpenAI-compatible provider can be configured through the same variables, for example [Gemini](https://ai.google.dev/gemini-api/docs/openai) with base URL `https://generativelanguage.googleapis.com/v1beta/openai/` and a compatible model ID. That alternative has not been exercised. LLM failures preserve the Qloo-derived deterministic brief and show a visible fallback notice. Real Qloo keys and real LLM calls have not been tested.
+The [official Nebius quickstart](https://docs.tokenfactory.nebius.com/quickstart) confirms the default endpoint. [Gemini's OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai) can be configured with `https://generativelanguage.googleapis.com/v1beta/openai/` and an appropriate model. No paid calls or provider signup were performed. LLM failures show a visible notice and retain the Qloo-grounded deterministic room brief. Failed live Qloo calls never silently switch to demo success.
 
-For Vercel, configure the variables in the project settings and redeploy. Deploy with the logged-in CLI:
+### Browser captures and deployment
+
+Run on pilot with a matching Playwright browser (or set `CHROMIUM_PATH` to the installed Chromium):
 
 ```sh
-vercel --prod --yes
+# Start a time-bounded dev server, then stop it after capture.
+timeout 240s npm run dev
+# In another terminal:
+CHROMIUM_PATH="$HOME/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome" RECORD_VIDEO=1 npm run test:e2e
 ```
 
-### Browser verification and captures (pilot)
+The capture script records a dedicated **1920×1080 Storefront WebM** to `media/storefront-flow.webm` and PNG screenshots `media/09-storefront-hero.png` through `media/16-mobile-storefront.png`. It verifies local-only photo upload, location/audience traces, the budget, 390px layout, personal/shared regression flows, error handling and axe accessibility checks. `media/verification.json` records the checked URL and results. The footage is a real browser recording for the separate Remotion workflow, not a final promotional video.
 
-```sh
-npx playwright install chromium ffmpeg
-# In one terminal, start npm run dev; stop it when done.
-CHROMIUM_PATH="$HOME/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome" npm run test:e2e
-# Optionally add RECORD_VIDEO=1 for 1920x1080 video recording.
-```
-
-`CHROMIUM_PATH` is optional if the matching Playwright browser is installed. The browser script verifies contrasting personal tastes, shared comparison, trace dialogs, a shopping checkbox, room type changes, invalid API requests, unknown demo inputs and a 390px mobile viewport. It also runs axe accessibility checks and captures eight original app screens in `media/`. `media/verification.json` contains the recorded checks against the public production URL. [Raw 1920×1080 walkthrough](media/tasteroom-walkthrough.mp4) is an unedited browser recording converted to a small MP4 on pilot for the separate video kit. The release passes 19 unit tests and 9 browser flow checks on desktop/mobile, with no axe violations in the checked states. Large raw video is excluded from git and is handed to the separate shared Remotion workflow; no final promotional video is claimed here.
-
-The prepared GitHub Actions workflow runs the unit suite, production build and a secret scan. Its upload is currently blocked because the existing GitHub OAuth login lacks the `workflow` scope; the app, tests and captures are public, while `.github/workflows/ci.yml` is retained in a separate local commit. After the owner refreshes GitHub authentication with workflow permission, push that commit to activate CI. Before every push, run `gitleaks detect --source . --redact` plus `gitleaks git --redact` when supported.
+Before each push: `gitleaks detect --source . --redact` and `gitleaks git --redact`. Deploy with the logged-in CLI: `vercel --prod --yes`. No Devpost submission is performed.
 
 ## What was built during the hackathon
 
-The entire application was created for the 2026 Qloo Agentic Hackathon: original UI and conceptual room artwork, Qloo client, schema-shaped synthetic fixtures, agent orchestration and LLM tools, evidence ledger, Shared Space logic, room-specific briefs, checklist/export, automated tests, CI, captures and Vercel deployment. Standard open source React, Vite and test tooling are used as dependencies; their upstream work is not claimed as our own.
+The original studio, conceptual room artwork, Qloo client and fixtures, agent orchestration, optional LLM tools, evidence ledger, Shared Space, room-specific briefs, export/checklist, tests, CI, captures and deployment were created for the 2026 Qloo Agentic Hackathon. The v2 extension adds Taste-to-Space positioning, three mode cards and Storefront: original vacant-shop artwork, local photo preview, location/audience research, a cited commercial concept, assumed-area budget, tests and captured footage. React, Vite and test tools are open source dependencies; their upstream work is not claimed as ours.
 
-## Status and remaining limits
+## Limits and assumptions
 
-The hosted keyless demo is for end-to-end evaluation of the product flow. A real Qloo key is still required to verify live API behavior and satisfy the hackathon’s working Qloo integration requirement. The owner also needs an LLM provider key/model to exercise LLM reasoning; deterministic reasoning works without it. Public live keys should be protected with provider quota controls; the app limits each request but does not implement durable cross-instance abuse throttling. No accounts were registered, money spent, or Devpost entry submitted.
+The hosted keyless demo uses synthetic evidence. Real Qloo and LLM behavior still requires owner-supplied keys; mocked contract tests do not verify live service access or geographic coverage. Qloo's account permissions can affect available endpoints and domains. Room design uses a compact set of directions; Storefront also uses bounded original concept templates selected by ranked signals. Name ideas need local availability checks. Recommendations are generic directions, not purchasable stock or copied products.
 
-The initial release maps cultural signals to a compact set of original design directions; it does not generate photorealistic room renders, source purchasable products, infer measurements, or guarantee design outcomes. Search uses an exact name match when present, otherwise the first returned result with a visible warning. Refine a taste name if it resolves incorrectly.
+Budget assumes **50 m² by default**, an existing serviced shell and mid-range finishes. It is an illustrative **USD rough estimate, not a quote**, with explicit exclusions and editable area; it is not localized construction pricing. No measurements, structural assessments, local approvals or commercial viability are inferred. Public API usage has per-request bounds but no durable cross-instance abuse throttle; configure provider quotas before enabling public paid keys.
+
+All demo artwork and fictional cultural names are original. No scraped content, third-party media or third-party demo logos are included. No accounts were registered or money spent.
 
 ## License
 

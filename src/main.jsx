@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import RoomArt from "./RoomArt.jsx";
+import StoreArt from "./StoreArt.jsx";
 import { DEMO_TASTES } from "../server/fixtures.js";
 import "./style.css";
 const sampleA = ["The Quiet Atlas", "Low Tide Radio", "North Window House"];
@@ -11,7 +12,7 @@ const sampleB = [
 ];
 const Arrow = () => <span aria-hidden="true">↗</span>;
 function App() {
-  const [mode, setMode] = useState("solo"),
+  const [mode, setMode] = useState("storefront"),
     [room, setRoom] = useState("Living room"),
     [people, setPeople] = useState([
       { name: "Alex", tastes: sampleA },
@@ -24,6 +25,22 @@ function App() {
     [copied, setCopied] = useState(false),
     [progress, setProgress] = useState(0);
   const [dataMode, setDataMode] = useState("demo");
+  const [store, setStore] = useState({ neighborhood: "Seongsu-dong, Seoul", business: "Cafe", area: 50, references: "" });
+  const [photo, setPhoto] = useState(null);
+  useEffect(() => () => { if (photo?.url) URL.revokeObjectURL(photo.url); }, [photo]);
+  const changeMode = value => { setMode(value); setResult(null); setError(""); };
+  async function uploadPhoto(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024) {
+      setError("Choose a JPG, PNG or WebP image under 8 MB."); event.target.value = ""; return;
+    }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { setPhoto({ url, width: img.naturalWidth, height: img.naturalHeight }); setError(""); };
+    img.onerror = () => { URL.revokeObjectURL(url); setError("This image could not be opened. Try a JPG, PNG or WebP."); };
+    img.src = url;
+  }
   useEffect(() => {
     fetch("/api/config")
       .then((r) => r.json())
@@ -74,11 +91,9 @@ function App() {
       const res = await fetch("/api/design", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode,
-          room,
-          people: people.slice(0, mode === "shared" ? 2 : 1),
-        }),
+        body: JSON.stringify(mode === "storefront" ? {
+          mode, ...store, references: store.references.split(",").map(x => x.trim()).filter(Boolean),
+        } : { mode, room, people: people.slice(0, mode === "shared" ? 2 : 1) }),
       });
       const data = await res.json();
       if (!res.ok)
@@ -129,7 +144,19 @@ function App() {
   );
   async function copyBrief() {
     const b = result.brief;
-    const text = [
+    const text = b.mode === "storefront" ? [
+      "TASTEROOM / STOREFRONT", `${result.mode.toUpperCase()} DATA · ${result.reasoning}`,
+      b.title, b.story, "NAME IDEAS", ...b.names.map(n => `${n.name}: ${n.reason.text}`),
+      "PALETTE", ...b.palette.map(p => `${p.name} ${p.hex}`), b.paletteReason.text,
+      "MATERIALS", ...b.materials.map(m => `${m.name}: ${m.description}. ${m.reason.text}`),
+      "SIGNATURE ZONE", b.furniture.text, b.furniture.reason.text,
+      "LIGHTING", ...b.lighting.map(l => `${l.time}: ${l.kelvin}. ${l.description}`), b.lightingReason.text,
+      ...[b.music, b.products, b.event].flatMap(x => [x.text, x.reason.text]),
+      "AUDIENCE", b.audienceNote, ...b.audience.map(a => a.detail),
+      "ROUGH BUDGET (USD)", ...b.budget.categories.map(c => `${c.category}: ${c.low}–${c.high}`),
+      `Total: ${b.budget.low}–${b.budget.high}`, b.budget.note, b.budgetReason.text,
+      "EVIDENCE", ...result.evidence.map(e => `${e.id}: ${e.name} ← ${e.entity} (${e.owner}); ${e.source}`),
+    ].join("\n") : [
       `TASTEROOM / ${b.room}`,
       `${result.mode.toUpperCase()} DATA · ${result.reasoning}`,
       b.title,
@@ -183,45 +210,49 @@ function App() {
         <section className="hero">
           <div className="hero-copy">
             <div className="eyebrow">
-              <span className="dot" /> INTERIORS, FROM THE INSIDE OUT
+              <span className="dot" /> TasteRoom — the Taste-to-Space agent
             </div>
             <h1>
-              Good taste.
+              Empty space.
               <br />
-              Your <em>space.</em>
+              Local <em>character.</em>
             </h1>
             <p className="hero-description">
-              The films you linger on. The music you come back to. The places
-              that feel like you.
+              From the culture you love to the spaces you make.
+              Turn a vacant shop into a concept that connects with its neighborhood.
               <br />
-              <strong>There’s a room in all of that.</strong>
+              <strong>Your taste. Your community. Your space.</strong>
             </p>
-            <button className="primary" onClick={scrollToForm}>
-              Find your room <Arrow />
+            <button className="primary" disabled={busy} onClick={() => { changeMode("storefront"); scrollToForm(); }}>
+              Explore Storefront <Arrow />
             </button>
             <div className="hero-foot">
               <span className="little-mark">✳</span>
               <span>
-                No style quizzes. No blank canvases.
+                For founders, vacant-space owners and designers.
                 <br />
-                Just a few things you already love.
+                Three ways from taste to space.
               </span>
             </div>
           </div>
           <div className="hero-visual">
-            <RoomArt />
+            <div className="hero-transform">
+              <StoreArt />
+              <span className="transform-arrow" aria-hidden="true">↘</span>
+              <StoreArt after business="Cafe" />
+            </div>
             <div className="room-label">
               <span>
-                <span className="dot" /> A ROOM, TRANSLATED FROM TASTE
+                <span className="dot" /> STOREFRONT / FROM EMPTY TO POSSIBILITY
               </span>
               <span>STUDY Nº 001</span>
             </div>
             <div className="floating-note">
               <span>THE STARTING POINT</span>
               <p>
-                Less “what’s your style?”
+                A vacant unit.
                 <br />
-                More “what moves you?”
+                A neighborhood story.
               </p>
               <span className="note-line" />
             </div>
@@ -235,18 +266,18 @@ function App() {
             <em>Qloo connects the dots.</em>
           </p>
           <div>
-            01 &nbsp; Tell us what you love
+            01 &nbsp; Bring your tastes or a location
             <br />
-            02 &nbsp; Follow your cultural affinities
+            02 &nbsp; Explore Qloo cultural signals
             <br />
-            03 &nbsp; Make room for yourself
+            03 &nbsp; Build a space with a story
           </div>
         </div>
         <section className="studio" id="studio" ref={formRef}>
           <div className="section-heading">
             <div>
               <span className="eyebrow">01 / THE INGREDIENTS</span>
-              <h2>Start with your kind of things.</h2>
+              <h2>One agent. Three kinds of space.</h2>
             </div>
             <span className="small-note">
               A room that feels like you
@@ -276,34 +307,49 @@ function App() {
           </div>
           <form onSubmit={submit}>
             <div className="form-top">
-              <div className="mode-switch" aria-label="Design mode">
-                <button
-                  type="button"
-                  className={mode === "solo" ? "active" : ""}
-                  onClick={() => setMode("solo")}
-                  aria-pressed={mode === "solo"}
-                >
-                  Just for me <span>↗</span>
-                </button>
-                <button
-                  type="button"
-                  className={mode === "shared" ? "active" : ""}
-                  onClick={() => setMode("shared")}
-                  aria-pressed={mode === "shared"}
-                >
-                  A shared space <span>↔</span>
-                </button>
+              <div className="mode-switch mode-cards" aria-label="Design mode">
+                {[
+                  ["solo", "My Room", "Your films, music and favorites → a personal interior brief."],
+                  ["shared", "Shared Space", "Two taste profiles → common ground and personal corners."],
+                  ["storefront", "Storefront", "An empty unit + area taste → a store with local character."],
+                ].map(([value, title, description]) => <button type="button" key={value}
+                  className={mode === value ? "active" : ""} aria-pressed={mode === value}
+                  disabled={busy} onClick={() => changeMode(value)}>
+                  <strong>{title} <span aria-hidden="true">↗</span></strong><span>{description}</span>
+                  {value === "storefront" && <small>FEATURED DEMO</small>}
+                </button>)}
               </div>
-              <label className="room-select">
+              {mode !== "storefront" && <label className="room-select">
                 MAKE ROOM FOR
                 <select value={room} onChange={(e) => setRoom(e.target.value)}>
                   <option>Living room</option>
                   <option>Bedroom</option>
                   <option>Home office</option>
                 </select>
-              </label>
+              </label>}
             </div>
-            <div className={`people-grid ${mode === "shared" ? "two" : ""}`}>
+            {mode === "storefront" ? <div className="store-inputs">
+              <div className="space-reference">
+                <StoreArt photo={photo?.url} />
+                <label className="upload-label">Photo of your empty space
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadPhoto} />
+                </label>
+                <p>{photo ? `${photo.width} × ${photo.height} px · preview only` : "Start with our original illustration, or choose your own photo."} Images stay in your browser. We do not analyze pixels, infer measurements or send photos to Qloo.</p>
+                {photo && <button type="button" className="text-button" onClick={() => setPhoto(null)}>Use sample illustration ↗</button>}
+              </div>
+              <div className="store-fields">
+                <span className="eyebrow">A NEIGHBORHOOD IS A STARTING POINT</span>
+                <h3>Give this space a reason to exist.</h3>
+                <label>Neighborhood / city<input required minLength="3" maxLength="160" value={store.neighborhood} onChange={e=>setStore({...store,neighborhood:e.target.value})} placeholder="Neighborhood, city" /></label>
+                <div className="store-field-row">
+                  <label>Business type<select value={store.business} onChange={e=>setStore({...store,business:e.target.value})}>{["Cafe","Bar","Bookstore","Boutique"].map(b=><option key={b}>{b}</option>)}</select></label>
+                  <label>Assumed floor area (m²)<input type="number" required min="10" max="500" value={store.area} onChange={e=>setStore({...store,area:e.target.value})} /></label>
+                </div>
+                <label>Brand references (optional)<input maxLength="300" value={store.references} onChange={e=>setStore({...store,references:e.target.value})} placeholder={dataMode === "demo" ? "Field Notes Press" : "Up to 3 names, separated by commas"} /></label>
+                <p className="input-hint">{dataMode === "demo" ? "Demo reference: Field Notes Press. All area and audience signals are fictional, even when you enter a real city." : "Qloo combines area affinity with your optional references, then returns audience affinities for the discovered brands."}</p>
+                <p className="input-hint">For landlords, brokers, small founders and interior designers. The assumed area guides an illustrative USD budget, not a measured quote.</p>
+              </div>
+            </div> : <div className={`people-grid ${mode === "shared" ? "two" : ""}`}>
               {people.slice(0, mode === "shared" ? 2 : 1).map((person, i) => (
                 <div className="person" key={i}>
                   <div className="person-top">
@@ -387,7 +433,7 @@ function App() {
                   )}
                 </div>
               ))}
-            </div>
+            </div>}
             <datalist id="demo-tastes">
               {DEMO_TASTES.map((t) => (
                 <option key={t.id} value={t.name}>
@@ -418,6 +464,8 @@ function App() {
               <button className="primary" type="submit" disabled={busy}>
                 {busy
                   ? "Connecting your taste…"
+                  : mode === "storefront"
+                    ? "Create store concept"
                   : mode === "shared"
                     ? "Find our common ground"
                     : "Translate my taste"}{" "}
@@ -429,12 +477,12 @@ function App() {
                 <span className="dot" />
                 {
                   [
-                    "Resolving your cultural tastes…",
-                    "Exploring cross-domain affinities…",
+                    mode === "storefront" ? "Exploring area taste signals…" : "Resolving your cultural tastes…",
+                    mode === "storefront" ? "Following local places and cultural affinities…" : "Exploring cross-domain affinities…",
                     mode === "shared"
                       ? "Comparing both worlds…"
                       : "Following the taste signals…",
-                    "Composing your room brief…",
+                    mode === "storefront" ? "Composing your store concept…" : "Composing your room brief…",
                   ][progress]
                 }
                 <small>The complete tool log appears with your brief.</small>
@@ -450,7 +498,7 @@ function App() {
         {result && (
           <section className="results" ref={resultRef} id="your-room">
             <div className="result-top">
-              <span className="eyebrow">02 / YOUR ROOM, DECODED</span>
+              <span className="eyebrow">02 / {result.brief.mode === "storefront" ? "YOUR STOREFRONT CONCEPT" : "YOUR ROOM, DECODED"}</span>
               <div>
                 <span className={`data-badge ${result.mode}`}>
                   {result.mode === "demo"
@@ -480,14 +528,14 @@ function App() {
             <div className="result-layout">
               <div className="moodboard">
                 <div className="result-art">
-                  <RoomArt
+                  {result.brief.mode === "storefront" ? <div className="store-result-pair"><StoreArt photo={photo?.url} /><StoreArt after direction={result.brief.direction} business={result.brief.business} /></div> : <RoomArt
                     direction={result.brief.direction}
                     room={result.brief.room}
-                  />
-                  <span className="art-caption">
+                  />}
+                  {result.brief.mode !== "storefront" && <span className="art-caption">
                     {result.brief.room.toUpperCase()} / CONCEPTUAL ILLUSTRATION
                     · NOT A RENDER
-                  </span>
+                  </span>}
                 </div>
                 <article className="palette-card">
                   <div className="card-heading">
@@ -522,7 +570,7 @@ function App() {
                 </div>
                 <article className="furniture-card">
                   <span className="eyebrow">THE SHAPE OF THINGS</span>
-                  <h3>Give the room its rhythm.</h3>
+                  <h3>{result.brief.mode === "storefront" ? "The signature zone." : "Give the room its rhythm."}</h3>
                   <p>{result.brief.furniture.text}</p>
                   {trace(result.brief.furniture.reason)}
                 </article>
@@ -544,6 +592,20 @@ function App() {
                   </div>
                   {trace(result.brief.lightingReason)}
                 </article>
+                {result.brief.mode === "storefront" && <>
+                  <article className="furniture-card name-ideas">
+                    <span className="eyebrow">A FIRST IMPRESSION</span><h3>Three names to try on.</h3>
+                    {result.brief.names.map(n=><div key={n.name}><h4>{n.name}</h4>{trace(n.reason)}</div>)}
+                  </article>
+                  {[ ["Music direction", result.brief.music], ["Menu / product direction", result.brief.products], ["An opening worth visiting", result.brief.event] ].map(([title, choice])=><article className="furniture-card" key={title}><h3>{title}</h3><p>{choice.text}</p>{trace(choice.reason)}</article>)}
+                  <article className="furniture-card audience-card"><span className="eyebrow">AUDIENCE / A HYPOTHESIS TO TEST</span><h3>Who might connect?</h3><p>{result.brief.audienceNote}</p>
+                    {result.brief.audience.length ? result.brief.audience.map(a=><div key={a.id}><p>{a.detail}</p>{trace({text:"Audience affinity from an area-affinity brand, not a local census.",evidence:[a.id]})}</div>) : <p>No usable audience data returned. Validate with local visitors.</p>}
+                  </article>
+                  <article className="furniture-card budget-card"><span className="eyebrow">ROUGH ESTIMATE / NOT A QUOTE</span><h3>A starting budget.</h3><p>{result.brief.budget.note}</p>
+                    <table><caption>Illustrative fit-out allowances · {result.brief.budget.area} m² · USD</caption><thead><tr><th scope="col">Category</th><th scope="col">Low</th><th scope="col">High</th></tr></thead><tbody>{result.brief.budget.categories.map(c=><tr key={c.category}><th scope="row">{c.category}</th><td>${c.low.toLocaleString("en-US")}</td><td>${c.high.toLocaleString("en-US")}</td></tr>)}</tbody><tfoot><tr><th scope="row">Total</th><td>${result.brief.budget.low.toLocaleString("en-US")}</td><td>${result.brief.budget.high.toLocaleString("en-US")}</td></tr></tfoot></table>
+                    {trace(result.brief.budgetReason)}
+                  </article>
+                </>}
                 {result.comparison && (
                   <article className="comparison-card">
                     <span className="eyebrow">↔ / A PLACE FOR BOTH</span>
@@ -598,7 +660,7 @@ function App() {
                     </div>
                   </article>
                 )}
-                <article className="shopping-card">
+                {result.brief.mode !== "storefront" && <article className="shopping-card">
                   <span className="eyebrow">03 / MAKE IT REAL</span>
                   <h3>A considered shopping list.</h3>
                   <p>
@@ -617,12 +679,12 @@ function App() {
                       </label>
                     ))}
                   </div>
-                </article>
+                </article>}
               </div>
               <aside className="agent-panel">
                 <div className="agent-panel-title">
                   <span className="dot" />
-                  <h3>Behind the room</h3>
+                  <h3>{result.brief.mode === "storefront" ? "Behind the concept" : "Behind the room"}</h3>
                   <span>{result.steps.length} STEPS</span>
                 </div>
                 <p>
@@ -700,7 +762,7 @@ function App() {
         <a className="wordmark" href="#">
           TasteRoom<span className="brand-dot">·</span>
         </a>
-        <p>Make room for the things that make you.</p>
+        <p>TasteRoom — the Taste-to-Space agent<br />By an architecture graduate · Industrial Engineer, Interior Architecture (Korea)</p>
         <span>BUILT WITH QLOO · MADE FOR YOU</span>
       </footer>
       {selected && (
@@ -738,6 +800,8 @@ function App() {
               <dd>{selected.owner}</dd>
               <dt>Entity ID</dt>
               <dd>{selected.entityId || selected.key}</dd>
+              {selected.source && <><dt>Research parameters</dt><dd>{selected.source}</dd></>}
+              {selected.detail && <><dt>Audience context</dt><dd>{selected.detail}</dd></>}
               <dt>Source</dt>
               <dd>
                 {result.mode === "demo"

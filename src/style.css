@@ -1876,3 +1876,66 @@ footer > span {
 .lighting-card .trace-chips button {
   color: #e2e9d5;
 }
+
+/* Storefront extends the existing studio's paper, olive and terracotta palette. */
+.hero-transform { position: relative; padding: 0 0 38% 12%; }
+.hero-transform > .store-art:first-child { width: 69%; margin-left: 26%; opacity: .88; }
+.hero-transform > .store-art:last-child { position: absolute; width: 83%; left: 0; bottom: 0; box-shadow: 0 18px 55px #343a292b; border: 7px solid var(--paper); }
+.transform-arrow { position: absolute; top: 28%; left: 11%; font-size: 56px; color: var(--rust); }
+.hero-visual .floating-note { right: -10px; left: auto; bottom: 62px; min-width: 205px; }
+.store-art { position: relative; overflow: hidden; aspect-ratio: 4 / 3; background: #d4ccbc; }
+.store-art > img { width: 100%; height: 100%; display: block; object-fit: contain; }
+.store-art > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.store-art-label { position: absolute; left: 13px; bottom: 13px; padding: 8px 10px; background: #f5f2eaeF; color: #434c38; font-size: 9px; letter-spacing: 1px; }
+.form-top { flex-wrap: wrap; }
+.mode-cards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; width: 100%; background: transparent; padding: 0; }
+.mode-cards button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 22px; text-align: left; border: 1px solid var(--line); background: #eeece3; gap: 10px; white-space: normal; }
+.mode-cards button.active { background: #e1e6c9; border-color: #707956; color: #30352b; box-shadow: inset 0 0 0 1px #707956; }
+.mode-cards strong { font-family: Georgia,serif; font-size: 25px; font-weight: 400; display:flex; justify-content:space-between; gap: 12px; }
+.mode-cards button > span { font-size: 12px; font-weight: 400; line-height: 1.65; color: #525c45; }
+.mode-cards small { font-size: 9px; letter-spacing: 1.4px; color: #74512d; margin-top: 2px; }
+.store-inputs { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 38px; }
+.space-reference .store-art { border: 1px solid var(--line); }
+.space-reference p { font-size: 11px; line-height: 1.8; color: var(--muted); }
+.upload-label { display: block; margin-top: 18px; font-size: 12px; font-weight: 600; }
+.upload-label input { display:block; font-size: 11px; margin-top: 10px; max-width: 100%; }
+.upload-label input::file-selector-button { background:#e1e6c9; border:1px solid var(--line); padding:10px; margin-right:10px; cursor:pointer; }
+.store-fields > h3 { font-family: Georgia,serif; font-size: 34px; font-weight: 400; letter-spacing:-1px; margin: 15px 0 22px; }
+.store-fields label { display: block; font-size: 11px; font-weight: 600; line-height: 1.6; margin-bottom: 19px; }
+.store-fields input,.store-fields select { display: block; border: 1px solid #b9bcaa; border-radius: 0; background: #faf8f1; padding: 13px 11px; width: 100%; margin-top: 7px; font-size: 13px; color: var(--ink); }
+.store-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.store-fields .input-hint { margin-top: 12px; }
+.name-ideas h4 { font-family: Georgia,serif; font-weight: 400; font-size: 27px; margin: 25px 0 8px; }
+.budget-card table { width:100%; border-collapse:collapse; margin:24px 0; font-size:12px; }
+.budget-card caption { text-align:left; font-size:11px; color:var(--muted); margin-bottom:14px; }
+.budget-card td,.budget-card th { text-align:right; padding:13px 8px; border-bottom:1px solid var(--line); font-weight:400; }
+.budget-card th:first-child { text-align:left; }
+.budget-card tfoot th,.budget-card tfoot td { font-weight:600; border-top:2px solid #8c9679; }
+.audience-card > div > p { font-size:12px; line-height:1.8; }
+@media (max-width: 1050px) {
+ .store-inputs { gap:24px; }
+ .mode-cards button { padding:16px; }
+ .mode-cards strong { font-size:22px; }
+ .hero-visual .floating-note { bottom:20px; right:0; min-width:180px; }
+}
+@media (max-width: 760px) {
+ .mode-cards { grid-template-columns: 1fr; gap:8px; }
+ .mode-cards button { gap:5px; padding:15px; }
+ .mode-cards strong { font-size:23px; }
+ .mode-cards button > span { font-size:11px; }
+ .store-inputs { grid-template-columns:1fr; }
+ .store-fields > h3 { font-size:30px; }
+ .store-field-row { gap:10px; }
+ .store-fields input,.store-fields select { font-size:12px; }
+ .hero-visual .floating-note { display:none; }
+ .hero-transform { padding-bottom:40%; }
+ .store-art-label { font-size:7px; left:8px; bottom:8px; letter-spacing:.5px; }
+ .budget-card table { font-size:10px; }
+ .budget-card td,.budget-card th { padding:11px 3px; }
+}
+@media print { .budget-card,.name-ideas { break-inside:avoid; } }
+.store-result-pair { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media (max-width: 760px) {
+ .store-result-pair { gap:7px; }
+ .store-result-pair .store-art-label { font-size:6px; padding:5px; left:3px; bottom:3px; }
+}

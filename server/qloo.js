@@ -1,4 +1,10 @@
-import { searchFixture, insightsFixture, compareFixture } from "./fixtures.js";
+import {
+  searchFixture,
+  insightsFixture,
+  compareFixture,
+  locationInsightsFixture,
+  demographicsFixture,
+} from "./fixtures.js";
 
 export const QLOO_BASE_URL = "https://hackathon.api.qloo.com";
 const SUPPORTED_TYPES = new Set([
@@ -37,6 +43,49 @@ function entityIds(ids) {
     throw new QlooError("Provide between 1 and 10 resolved entity IDs.", 400);
   }
   return [...new Set(ids)].join(",");
+}
+
+// Location signals rank cross-domain taste. A location filter additionally scopes
+// place results geographically; that filter is not supported for brands/artists.
+export function buildLocationParams(
+  location,
+  { type = "urn:entity:brand", ids = [] } = {},
+) {
+  if (!SUPPORTED_TYPES.has(type) || type === "urn:tag")
+    throw new QlooError("That location insight category is unavailable.", 400);
+  const params = { "filter.type": type, take: "8" };
+  const localPlaces = type === "urn:entity:place";
+  const value = typeof location === "string" ? { query: location } : location;
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new QlooError("Enter a neighborhood and city for this space.", 400);
+  if (typeof value.query === "string" && value.query.trim()) {
+    const query = value.query.trim();
+    if (query.length > 160)
+      throw new QlooError("Keep the neighborhood and city under 160 characters.", 400);
+    params["signal.location.query"] = query;
+    if (localPlaces) params["filter.location.query"] = query;
+  } else {
+    const { latitude, longitude } = value;
+    if (
+      !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+      latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180
+    )
+      throw new QlooError("Enter a neighborhood and city or valid coordinates.", 400);
+    const point = `POINT(${longitude} ${latitude})`;
+    params["signal.location"] = point;
+    if (localPlaces) params["filter.location"] = point;
+    // Leave radius unset by default so Qloo can use dynamic density discovery.
+    if (value.radius !== undefined) {
+      if (!Number.isInteger(value.radius) || value.radius <= 0 || value.radius > 100000)
+        throw new QlooError("The location radius must be 1–100000 meters.", 400);
+      params["signal.location.radius"] = String(value.radius);
+      if (localPlaces) params["filter.location.radius"] = String(value.radius);
+    }
+  }
+  if (!Array.isArray(ids))
+    throw new QlooError("Provide resolved brand reference IDs.", 400);
+  if (ids.length) params["signal.interests.entities"] = entityIds(ids);
+  return params;
 }
 
 export class QlooClient {
@@ -147,6 +196,29 @@ export class QlooClient {
       "qloo.insights",
       `Explore ${type.replace("urn:entity:", "").replace("urn:", "")} affinities from ${ids.length} tastes`,
       () => insightsFixture(ids, type),
+    );
+  }
+
+  locationInsights(location, type = "urn:entity:brand", ids = []) {
+    const params = buildLocationParams(location, { type, ids });
+    const label = params["signal.location.query"] || params["signal.location"];
+    return this.request(
+      "/v2/insights",
+      params,
+      "qloo.location-insights",
+      `Explore ${type.replace("urn:entity:", "")} tastes around ${label}`,
+      () => locationInsightsFixture(location, type, ids),
+    );
+  }
+
+  demographics(ids) {
+    const entities = entityIds(ids);
+    return this.request(
+      "/v2/insights",
+      { "filter.type": "urn:demographics", "signal.interests.entities": entities },
+      "qloo.demographics",
+      `Explore audience age and gender affinities for ${ids.length} location-related tastes`,
+      () => demographicsFixture(ids),
     );
   }
 

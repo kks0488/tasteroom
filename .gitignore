@@ -6,4 +6,5 @@ dist/
 *.log
 coverage/
 media/*.webm
+!media/storefront-flow.webm
 .vercel
