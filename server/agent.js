@@ -58,6 +58,7 @@ function summarize(records, person) {
       // Keep each domain represented: real brand responses can contain dozens
       // of tags, which must not crowd all artist/place/book evidence out.
       const tags = record.type === "urn:tag" ? [entity] : [...(entity.tags || [])]
+        .filter(tag => !/compan(?:y|ies)|headquartered|manufactur|established|industr(?:y|ies)|corporat|\b(?:19|20)\d{2}\b/i.test(tag.name || ""))
         .sort((a, b) => {
           const visual = /color|colour|earth|form|material|minimal|texture|craft|organic|warm|design|art|functional/i;
           return Number(visual.test(b.name || "")) - Number(visual.test(a.name || ""));
@@ -189,9 +190,9 @@ const themes = {
 };
 function explainSelection(evidence, ids, proposal) {
   const sources = ids.map(id => evidence.find(e => e.id === id)).filter(Boolean);
-  const anchors = sources.map(e => e.name === e.entity
+  const anchors = [...new Set(sources.map(e => e.name === e.entity
     ? `“${e.name}”`
-    : `“${e.name}” via ${e.entity}`).join(" and ");
+    : `“${e.name}” via ${e.entity}`))].join(" and ");
   return {
     text: `Qloo returned ${anchors} in cultural affinities. Our design interpretation: ${proposal}`,
     evidence: ids,
@@ -376,8 +377,8 @@ export function composeBrief({
     })),
     profiles: profiles.map((p) => ({
       name: p.name,
-      direction: p.direction,
-      accent: themes[p.direction].accent,
+      direction: mode === "solo" ? direction : p.direction,
+      accent: themes[mode === "solo" ? direction : p.direction].accent,
     })),
     mode,
   };
@@ -463,7 +464,7 @@ async function reasonWithLLM(context, client, onStep, env, fetchImpl, deadlineAt
     },
     { role: "user", content: JSON.stringify(context) },
   ];
-  messages[0].content += " Call finish_brief exactly once. Every evidence array must contain only supplied E-number IDs, NEVER UUIDs or input entity IDs. Every rationale must quote at least one of its cited signal names exactly. Only supplied names and tags are Qloo facts. Do not invent a venue's ambience, a film's colors, album imagery or a user's material preferences. Say what YOU propose, rather than claiming the owner already prefers it. Describe the lighting accurately: its Kelvin values decrease from morning to night (warmer at night). Keep rationales under 50 words each.";
+  messages[0].content += " Call finish_brief exactly once. Every evidence array must contain only supplied E-number IDs, NEVER UUIDs or input entity IDs. Prefer actual style or sensory tags such as Minimalist, Earthy Tones, Textured or Functional to justify each choice; a bare entity name alone is a weak design rationale. Every rationale must quote at least one of its cited signal names exactly. Only supplied names and tags are Qloo facts. Do not invent a venue's ambience, a film's colors, album imagery or a user's material preferences. Say what YOU propose, rather than claiming the owner already prefers it. Describe the lighting accurately: its Kelvin values decrease from morning to night (warmer at night). Keep rationales under 50 words each.";
   const knownIds = new Set(
     context.resolved.flatMap((p) => p.entities.map(idOf)),
   );

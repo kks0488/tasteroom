@@ -72,6 +72,50 @@ test("planner translates contrasting cultural profiles into different rooms", as
     }
   }
 });
+test("administrative brand tags cannot crowd genuine cultural signals out of room evidence", async () => {
+  const administrativeNames = [
+    "Design companies headquartered in Seoul",
+    "Manufacturers of organic materials",
+    "Companies established in 1984",
+    "Headquartered in New York",
+    "Industrial design corporations",
+    "Creative industries",
+    "Established brands",
+    "1998",
+  ];
+  const administrativeIds = new Set();
+  const genuineBrandTags = new Set();
+  class AdministrativeTagsClient extends QlooClient {
+    async insights(ids, type) {
+      const original = await super.insights(ids, type);
+      if (type !== "urn:entity:brand") return original;
+      const response = structuredClone(original);
+      for (const [entityIndex, entity] of response.results.entities.entries()) {
+        for (const tag of entity.tags || []) genuineBrandTags.add(tag.name);
+        const noise = Array.from({ length: 80 }, (_, index) => {
+          const id = `urn:tag:administrative-test:${entityIndex}:${index}`;
+          administrativeIds.add(id);
+          return { id, name: administrativeNames[index % administrativeNames.length], type: "urn:tag:company" };
+        });
+        entity.tags = [...noise, ...(entity.tags || [])];
+      }
+      // The injection must not mutate cached fixtures reused by other requests.
+      assert.ok(original.results.entities.every((entity) => entity.tags.every((tag) => !administrativeIds.has(tag.id))));
+      return response;
+    }
+  }
+  const result = await designRoom(input(), {
+    client: new AdministrativeTagsClient({ apiKey: "", fetchImpl: async () => { throw new Error("This regression must never make a live call."); } }),
+    env: {},
+  });
+  assert.ok(administrativeIds.size >= 80);
+  assert.ok(result.evidence.every((signal) => !administrativeIds.has(signal.key)));
+  assert.ok(result.evidence.every((signal) => !administrativeNames.includes(signal.name)));
+  assert.ok(result.evidence.some((signal) => signal.domain === "urn:entity:brand" && genuineBrandTags.has(signal.name)), "A genuine brand style signal must survive the administrative noise");
+  const domains = new Set(result.evidence.map((signal) => signal.domain));
+  for (const domain of ["urn:entity:brand", "urn:entity:artist", "urn:entity:place", "urn:entity:book", "urn:tag"])
+    assert.ok(domains.has(domain), `Missing cross-domain evidence: ${domain}`);
+});
 test("shared room uses Analysis Compare evidence and preserves distinct personal corners", async () => {
   const result = await designRoom(input([a, b]), demo);
   assert.equal(result.brief.direction, "balanced");
