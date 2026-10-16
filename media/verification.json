@@ -1,0 +1,17 @@
+{
+  "base": "https://tasteroom-rho.vercel.app",
+  "viewport": "1920x1080 and 390x844",
+  "checks": [
+    "Personal brief uses synthetic demo label and calm direction",
+    "Taste trace modal opens, labels its source, closes with Escape",
+    "Expressive cultural inputs materially change palette and room direction",
+    "Shared room displays Analysis Compare tool call, overlapping signals and distinct personal corners",
+    "Shopping checklist is interactive",
+    "Invalid API requests return 400",
+    "Unknown demo tastes return 422 instead of invented entities",
+    "Home office choice updates furniture and lighting",
+    "390px mobile input and shared brief render without horizontal overflow"
+  ],
+  "consoleErrors": [],
+  "accessibilityViolations": []
+}
