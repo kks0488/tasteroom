@@ -5,6 +5,13 @@ import {
   locationInsightsFixture,
   demographicsFixture,
 } from "./fixtures.js";
+import recordings from "./qloo-recordings.json" with { type: "json" };
+
+export function replayRequestKey(url) {
+  return url.pathname + "?" + new URLSearchParams(
+    [...url.searchParams].sort(([a], [b]) => a.localeCompare(b)),
+  ).toString();
+}
 
 export const QLOO_BASE_URL = "https://hackathon.api.qloo.com";
 const SUPPORTED_TYPES = new Set([
@@ -94,6 +101,7 @@ export class QlooClient {
     fetchImpl = fetch,
     onStep = () => {},
     deadlineAt = Date.now() + 50000,
+    replayEntries = recordings.entries,
   } = {}) {
     this.apiKey = typeof apiKey === "string" ? apiKey.trim() : "";
     this.mode = this.apiKey ? "live" : "demo";
@@ -104,12 +112,32 @@ export class QlooClient {
     this.queue = Promise.resolve();
     this.lastRequestAt = 0;
     this.deadlineAt = deadlineAt;
+    this.replays = new Map(replayEntries.map((entry) => [entry.request, entry]));
+    this.replayedDates = new Set();
+    this.upstreamUnavailable = false;
+  }
+
+  get replayNotice() {
+    return this.replayedDates.size
+      ? `Qloo is unavailable. This brief includes saved real Qloo responses captured on ${[...this.replayedDates].sort().join(", ")}, not a fresh lookup. Unrecorded inputs remain unavailable.`
+      : null;
+  }
+
+  replay(url, tool, detail, error) {
+    const entry = this.replays.get(replayRequestKey(url));
+    if (!entry) throw error;
+    this.mode = "replay";
+    this.replayedDates.add(entry.capturedAt.slice(0, 10) + " UTC");
+    this.onStep({ tool, detail, cached: true, replay: true, capturedAt: entry.capturedAt });
+    return structuredClone(entry.response);
   }
 
   // Hackathon keys have a small burst allowance. Serialize this request's
   // research and retry only explicit rate limits, never manufacture results.
   async fetchLive(url) {
     const pending = this.queue.then(async () => {
+      if (this.upstreamUnavailable)
+        throw new QlooError("Qloo is unavailable. Please try again later.", 503);
       for (let attempt = 0; attempt < 3; attempt++) {
         const delay = 300 - (Date.now() - this.lastRequestAt);
         if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
@@ -121,14 +149,17 @@ export class QlooClient {
           headers: { "X-Api-Key": this.apiKey, Accept: "application/json" },
           signal: AbortSignal.timeout(Math.min(8000, remaining)),
         });
-        if (response.status !== 429 || attempt === 2) return response;
+        if (response.status !== 429 || attempt === 2) {
+          if (!response.ok) this.upstreamUnavailable = true;
+          return response;
+        }
         const seconds = Number(response.headers?.get("retry-after"));
         const retryDelay = Number.isFinite(seconds) && seconds > 0
           ? Math.min(seconds * 1000, 3000) : 1000 * (attempt + 1);
         await new Promise((resolve) => setTimeout(resolve, retryDelay));
       }
     });
-    this.queue = pending.catch(() => {});
+    this.queue = pending.catch(() => { this.upstreamUnavailable = true; });
     return pending;
   }
 
@@ -149,6 +180,10 @@ export class QlooClient {
     this.onStep({ tool, detail, cached: false });
     const pending = (async () => {
       if (this.mode === "demo") return fixture();
+      if (this.upstreamUnavailable)
+        return this.replay(url, tool, detail, new QlooError(
+          "Qloo is unavailable and no saved response matches this request. Use the recorded sample tastes or try again later.", 503,
+        ));
       try {
         const response = await this.fetchLive(url);
         if (!response.ok) {
@@ -180,12 +215,13 @@ export class QlooClient {
           );
         return data;
       } catch (error) {
-        if (error instanceof QlooError) throw error;
+        this.upstreamUnavailable = true;
         // Never expose fetch errors, upstream response bodies, URLs or credentials.
-        throw new QlooError(
+        const safeError = error instanceof QlooError ? error : new QlooError(
           "Qloo research timed out or could not connect. Please try again.",
           503,
         );
+        return this.replay(url, tool, detail, safeError);
       }
     })();
     this.cache.set(cacheKey, pending);

@@ -818,6 +818,6 @@ export async function designRoom(
       })),
     })),
     steps,
-    warnings: [...new Set(warnings)],
+    warnings: [...new Set([...warnings, ...(client.replayNotice ? [client.replayNotice] : [])])],
   };
 }

@@ -520,6 +520,8 @@ function App() {
                 <span className={`data-badge ${result.mode}`}>
                   {result.mode === "demo"
                     ? "SYNTHETIC DEMO DATA"
+                    : result.mode === "replay"
+                    ? "SAVED REAL QLOO RESPONSES"
                     : "LIVE QLOO DATA"}
                 </span>
                 <span className="planner-badge">{result.reasoning}</span>
@@ -769,6 +771,8 @@ function App() {
                 <p className="agent-disclaimer">
                   {result.mode === "demo"
                     ? "All demo names, IDs and affinities are fictional fixtures. No live Qloo request was made."
+                    : result.mode === "replay"
+                    ? "This brief includes saved real Qloo responses; it is not a fresh lookup."
                     : "Qloo supplies cultural affinity data. TasteRoom interprets it as interior design direction."}{" "}
                   Room illustrations are original conceptual artwork. Lighting
                   temperatures and furniture choices are design suggestions.
@@ -826,6 +830,8 @@ function App() {
               <dd>
                 {result.mode === "demo"
                   ? "Original synthetic fixture"
+                  : result.mode === "replay"
+                  ? "Qloo response (brief includes saved real responses)"
                   : "Qloo API response"}
               </dd>
             </dl>

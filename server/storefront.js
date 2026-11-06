@@ -116,5 +116,6 @@ export async function designStorefront(raw, { client, env = process.env, fetchIm
   };
   onStep({tool:"compose_storefront",detail:`Deterministic concept composed from ${evidence.length} area and audience signals.`});
   return { mode:client.mode, reasoning:"Deterministic storefront planner", brief, evidence, comparison:null,
-    resolved:[{name:input.neighborhood, entities:references.map(e=>({id:idOf(e),name:e.name,type:e.subtype}))}], steps, warnings };
+    resolved:[{name:input.neighborhood, entities:references.map(e=>({id:idOf(e),name:e.name,type:e.subtype}))}], steps,
+    warnings: [...warnings, ...(client.replayNotice ? [client.replayNotice] : [])] };
 }

@@ -72,7 +72,10 @@ test("live storefront uses location + discovered-entity audiences and does not s
   assert.ok(urls.filter(u=>u.searchParams.get("signal.location.query")).every(u=>u.searchParams.get("signal.location.query")==="Seongsu-dong, Seoul"));
   const audienceCall = urls.find(u=>u.searchParams.get("filter.type")==="urn:demographics");
   assert.ok(audienceCall.searchParams.get("signal.interests.entities"));
-  await assert.rejects(()=>designStorefront(input(), {env:{QLOO_API_KEY:"test-only"},fetchImpl:async()=>new Response("{}",{status:401})}),/Qloo access/);
+  const replay = await designStorefront(input(), {env:{QLOO_API_KEY:"test-only"},fetchImpl:async()=>new Response("{}",{status:401})});
+  assert.equal(replay.mode,"replay");
+  assert.ok(replay.warnings.some(w=>w.includes("saved real Qloo responses")));
+  await assert.rejects(()=>designStorefront({...input(), neighborhood:"Unrecorded neighborhood"}, {env:{QLOO_API_KEY:"test-only"},fetchImpl:async()=>new Response("{}",{status:401})}),/Qloo access|unavailable/);
 });
 test("missing audience data is disclosed; empty location data never yields a fabricated concept", async () => {
   class NoAudience extends QlooClient { demographics(){ return Promise.resolve({success:true,results:{demographics:[]}}); } }
